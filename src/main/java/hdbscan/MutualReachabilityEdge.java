@@ -1,4 +1,4 @@
-package main.java.hdbscanstar;
+package main.java.hdbscan;
 
 public class MutualReachabilityEdge {
 	

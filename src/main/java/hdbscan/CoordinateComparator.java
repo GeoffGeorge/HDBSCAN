@@ -1,4 +1,4 @@
-package main.java.hdbscanstar;
+package main.java.hdbscan;
 import java.util.Comparator;
 import com.vividsolutions.jts.geom.Coordinate ;
 

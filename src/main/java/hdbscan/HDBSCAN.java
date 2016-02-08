@@ -1,4 +1,4 @@
-package main.java.hdbscanstar;
+package main.java.hdbscan;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
