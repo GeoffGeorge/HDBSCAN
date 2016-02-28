@@ -1,7 +1,7 @@
 package main.java.hdbscan;
 
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.TreeMap;
 
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Envelope;
@@ -17,14 +17,13 @@ public class KdNode implements Comparable<KdNode> {
     private KdNode left;
     private KdNode right;
     private KdNode parent;
-    private int axis;
-    private int count;
-    private double coreDistance;
-	private int label;
-	private double[] neighborDistances;
-	private KdNode[] neighbors;
-	private ArrayList<Integer> checkedNodes;
-	private int k;
+    private Integer axis;
+    private Integer count;
+    private Double coreDistance;
+    private Double bboxDistace; 
+	private Integer label;
+	private TreeMap<Double, KdNode> neighbors;
+	private Integer k;
 	private static int nodeCount = 0;
 
 
@@ -46,14 +45,9 @@ public class KdNode implements Comparable<KdNode> {
         this.label = nodeCount;
         nodeCount += 1;
         this.k = k;
+        this.axis = axis;
 		this.coreDistance = Double.MAX_VALUE;
-		this.neighborDistances = new double[k];
-		this.neighbors = new KdNode[k];
-		this.checkedNodes = new ArrayList();
-		
-		for(int i=0;i<neighborDistances.length;i++){
-			neighborDistances[i] = Double.MAX_VALUE;
-		}
+		this.neighbors = new TreeMap();
 		
 		bbox = new Envelope(p,p);
     }
@@ -73,106 +67,105 @@ public class KdNode implements Comparable<KdNode> {
         this.label = nodeCount;
         nodeCount += 1;
         this.k = k;
+        this.axis = axis;
 		this.coreDistance = Double.MAX_VALUE;
-		this.neighborDistances = new double[k];
-		this.neighbors = new KdNode[k];
-		this.checkedNodes = new ArrayList();
-		
-		for(int i=0;i<neighborDistances.length;i++){
-			neighborDistances[i] = Double.MAX_VALUE;
-		}
+		this.neighbors = new TreeMap();
 		
 		bbox = new Envelope(p,p);
     }
     
     public void calculateBBox(){
-    	double minX = bbox.getMinX();
-		double minY = bbox.getMinY();
-		double maxX = bbox.getMaxX();
-		double maxY = bbox.getMaxY();
-		
-		for(KdNode node : neighbors){
-			if(node != null){
-				if (node.getX() < bbox.getMinX()) minX = node.getX();
-				if (node.getX() > bbox.getMaxX()) maxX = node.getX();
-				if (node.getY() < bbox.getMinY()) minY = node.getY();
-				if (node.getY() > bbox.getMaxY()) maxY = node.getY();
-			}
+    	final int R = 6371;
+    	final double MIN_LAT = Math.toRadians(-90d);  // -PI/2
+    	final double MAX_LAT = Math.toRadians(90d);   //  PI/2
+    	final double MIN_LON = Math.toRadians(-180d); // -PI
+    	final double MAX_LON = Math.toRadians(180d);  //  PI
+    	double dist;
+    	double radLat = Math.toRadians(p.y);
+    	double radLon = Math.toRadians(p.x);
+    	Double[] distArray = new Double[neighbors.size()];
+    	neighbors.descendingKeySet().toArray(distArray);
+    	
+    	if(neighbors.size() % 2 == 0){
+    		int half = neighbors.size()/2;
+    		dist = (distArray[half] + distArray[half-1]) / 2;
+    	}else{
+    		dist = distArray[neighbors.size()/2];
+    	}
+    	double radDist = dist / R;
+    	
+    	double minLat = radLat - radDist;
+    	double maxLat = radLat + radDist;
+    	
+    	double minLon, maxLon;
+    	if (minLat > MIN_LAT && maxLat < MAX_LAT) {
+			double deltaLon = Math.asin(Math.sin(radDist) /
+				Math.cos(radLat));
+			minLon = radLon - deltaLon;
+			if (minLon < MIN_LON) minLon += 2d * Math.PI;
+			maxLon = radLon + deltaLon;
+			if (maxLon > MAX_LON) maxLon -= 2d * Math.PI;
+		} else {
+			// a pole is within the distance
+			minLat = Math.max(minLat, MIN_LAT);
+			maxLat = Math.min(maxLat, MAX_LAT);
+			minLon = MIN_LON;
+			maxLon = MAX_LON;
 		}
-		bbox = new Envelope(new Coordinate(minX,minY), new Coordinate(maxX,maxY));
+    	bbox.expandToInclude(Math.toDegrees(minLon), Math.toDegrees(minLat));
+    	bbox.expandToInclude(Math.toDegrees(maxLon), Math.toDegrees(maxLat));
+    	
     }
     
-    public double addNeighbor(KdNode other){
-    	for(int label : checkedNodes){
-    		if(label == other.label){
-    			return Double.NaN;
-    		}else{
-    			checkedNodes.add(other.label);
-    		}
+    public Double addNeighbor(KdNode other){
+    	if(neighbors.containsValue(other)){
+    		return null;
     	}
+
 		double currDistance = computeDistance(this.p,other.p);
 		double retDistance = currDistance;
-
-		if(currDistance < coreDistance){
-			//Scan existing distances to see if current distance is less than any of them
-			for(int i = 0;i<neighborDistances.length;i++){
-				if(neighborDistances[i] == Double.MAX_VALUE){
-					neighborDistances[i] = currDistance;
-					neighbors[i] = other;
-					break;
-				}
-				if(currDistance <= neighborDistances[i]){
-					double tempDistance = neighborDistances[i];
-					KdNode tempNode = neighbors[i];
-					neighborDistances[i] = currDistance;
-					neighbors[i] = other;
-					currDistance = tempDistance;
-					if(tempNode != null)
-						other = tempNode;
-				}
+		
+		if(neighbors.size() < k){
+			neighbors.put(currDistance,other);
+			if(neighbors.size() == k){
+				hasKNeighbors = true;
 			}
-			coreDistance = neighborDistances[k-1];
-			if(coreDistance != Double.MAX_VALUE) hasKNeighbors = true;
-			calculateBBox();
+			coreDistance = neighbors.lastEntry().getKey();
 			return retDistance;
-		} else return Double.NaN;
+		}
+		else if(currDistance < coreDistance){
+//			System.out.println("Before remove:" + neighbors.size());
+			neighbors.pollLastEntry();
+//			System.out.println("After remove: " + neighbors.size());
+			neighbors.put(currDistance,other);
+			coreDistance = neighbors.lastEntry().getKey();
+			return retDistance;
+		} else return null;
 		
 	}
     
-    public double addNeighbor(KdNode other, double distance){
-    	for(int label : checkedNodes){
-    		if(label == other.label){
-    			return Double.NaN;
-    		}else{
-    			checkedNodes.add(other.label);
-    		}
+    public Double addNeighbor(KdNode other, double distance){
+    	if(neighbors.containsValue(other)){
+    		return null;
     	}
+
 		double currDistance = distance;
 		double retDistance = currDistance;
 
-		if(currDistance < coreDistance){
-			//Scan existing distances to see if current distance is less than any of them
-			for(int i = 0;i<neighborDistances.length;i++){
-				if(neighborDistances[i] == Double.MAX_VALUE){
-					neighborDistances[i] = currDistance;
-					neighbors[i] = other;
-					break;
-				}
-				if(currDistance <= neighborDistances[i]){
-					double tempDistance = neighborDistances[i];
-					KdNode tempNode = neighbors[i];
-					neighborDistances[i] = currDistance;
-					neighbors[i] = other;
-					currDistance = tempDistance;
-					if(tempNode != null)
-						other = tempNode;
-				}
+		if(neighbors.size() < k){
+			neighbors.put(currDistance,other);
+			if(neighbors.size() == k){
+				hasKNeighbors = true;
 			}
-			coreDistance = neighborDistances[k-1];
-			if(coreDistance != Double.MAX_VALUE) hasKNeighbors = true;
-			calculateBBox();
+			coreDistance = neighbors.lastEntry().getKey();
 			return retDistance;
-		} else return Double.NaN;
+		}
+		else if(currDistance < coreDistance){
+			neighbors.pollLastEntry();
+			neighbors.put(currDistance,other);
+			coreDistance = neighbors.lastEntry().getKey();
+			return retDistance;
+		} else return null;
     }
     
     public double computeDistance(Coordinate point1, Coordinate point2){
@@ -277,11 +270,8 @@ public class KdNode implements Comparable<KdNode> {
 		return label;
 	}
 
-	public double[] getNeighborDistances() {
-		return neighborDistances;
-	}
 
-	public KdNode[] getNeighbors() {
+	public TreeMap<Double, KdNode> getNeighbors() {
 		return neighbors;
 	}
 	
@@ -364,7 +354,7 @@ public class KdNode implements Comparable<KdNode> {
 	@Override
 	public String toString() {
 		return "KdNode [p=" + p + ", coreDistance=" + coreDistance + ", label=" + label + ", neighborDistances="
-				+ Arrays.toString(neighborDistances) + ", bbox=" + bbox + ", hasKNeighbors=" + hasKNeighbors + "]";
+				+ Arrays.toString(neighbors.descendingKeySet().toArray()) + ", bbox=" + bbox + ", hasKNeighbors=" + hasKNeighbors + "]";
 	}
 
 	@Override
@@ -394,6 +384,6 @@ public class KdNode implements Comparable<KdNode> {
 
 	@Override
 	public int compareTo(KdNode other) {
-		return (this.label < other.label ? -1 : (this.label > other.label ? 1: 0));
+		return this.label < other.label ? -1 : (this.label > other.label ? 1 : 0);
 	}
 }

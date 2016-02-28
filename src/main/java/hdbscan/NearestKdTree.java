@@ -2,7 +2,6 @@ package main.java.hdbscan;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.TreeSet;
@@ -84,7 +83,7 @@ public class NearestKdTree{
 	  
 
 		private void queryNode(KdNode currentNode, KdNode bottomNode,
-				Envelope queryEnv, boolean odd, List result) {
+				Envelope queryEnv, boolean odd, List<KdNode> result) {
 			if (currentNode == bottomNode)
 				return;
 
@@ -107,7 +106,7 @@ public class NearestKdTree{
 				queryNode(currentNode.getLeft(), bottomNode, queryEnv, !odd, result);
 			}
 			if (queryEnv.contains(currentNode.getCoordinate())) {
-				result.add((Object) currentNode);
+				result.add(currentNode);
 			}
 			if (searchRight) {
 				queryNode(currentNode.getRight(), bottomNode, queryEnv, !odd, result);
@@ -122,8 +121,8 @@ public class NearestKdTree{
 		 *          the range rectangle to query
 		 * @return a list of the KdNodes found
 		 */
-		public ArrayList query(Envelope queryEnv) {
-			ArrayList result = new ArrayList();
+		public ArrayList<KdNode> query(Envelope queryEnv) {
+			ArrayList<KdNode> result = new ArrayList<KdNode>();
 			queryNode(root, last, queryEnv, true, result);
 			return result;
 		}
@@ -136,7 +135,7 @@ public class NearestKdTree{
 		 * @param result
 		 *          a list to accumulate the result nodes into
 		 */
-		public void query(Envelope queryEnv, List result) {
+		public void query(Envelope queryEnv, List<KdNode> result) {
 			queryNode(root, last, queryEnv, true, result);
 		}
 
@@ -148,18 +147,11 @@ public class NearestKdTree{
 	 * @param visitor the {@link ItemVisitor} which should visit each result.
 	 */
 	public void query(Envelope searchEnv, ItemVisitor visitor) {
-		List results = query(searchEnv) ; 
-		Iterator visitator = results.iterator() ; 
+		List<KdNode> results = query(searchEnv) ; 
+		Iterator<KdNode> visitator = results.iterator() ; 
 		while (visitator.hasNext()) { 
 			visitor.visitItem(visitator.next()) ; 
 		}		
-	}
-
-	/** 
-	 * not implemented. always returns false.
-	 */
-	public boolean remove(Coordinate itemEnv, Object item) {
-		return false;
 	}
 	
 	
@@ -171,7 +163,8 @@ public class NearestKdTree{
 	 * @param p coordinate to search for.
 	 * @return path from root to leaf, caused by searching for p.
 	 */
-	public ArrayList path(Coordinate p) {
+	@SuppressWarnings("unchecked")
+	public ArrayList<KdNode> path(Coordinate p) {
 		ArrayListVisitor v = new ArrayListVisitor() ; 
 		
 		traverse(getRoot(), p, v) ; 
@@ -184,18 +177,18 @@ public class NearestKdTree{
 	 * @param p The point to find
 	 * @return true if the point is in the tree.
 	 */
-	public boolean contains(Coordinate p) { 
-		return traverseFind(getRoot(), p) ; 
-	}
+//	public boolean contains(Coordinate p) { 
+//		return traverseFind(getRoot(), p) ; 
+//	}
 	
 	/**
 	 * Returns the path from the root node to the specified coordinate.
 	 * @param p coordinate to search for
 	 * @return list of KdNodes in order of traversal.
 	 */
-	public ArrayList coordinatePath(Coordinate p) { 
-		ArrayList leafPath = path(p) ; 
-		ListIterator popper = leafPath.listIterator(leafPath.size()) ; 
+	public ArrayList<KdNode> coordinatePath(Coordinate p) { 
+		ArrayList<KdNode> leafPath = path(p) ; 
+		ListIterator<KdNode> popper = leafPath.listIterator(leafPath.size()) ; 
 		
 		boolean found = false; 
 		while (popper.hasPrevious() && !found) { 
@@ -216,32 +209,32 @@ public class NearestKdTree{
 	 * @param p the coordinate to look for
 	 * @return true if the point is in the tree.
 	 */
-	public static boolean traverseFind(KdNode start, Coordinate searchPoint) { 
-		boolean found = false ;		
-		KdNode currentNode = start;
-		KdNode last = null;		
-		boolean isOddLevel = true;
-		boolean isLessThan = true;
-
-		// traverse the tree first cutting the plane left-right the top-bottom
-		while (!found && currentNode != last) {
-			found = searchPoint.equals(currentNode.getCoordinate());
-			if(!found){
-				if (isOddLevel) {
-					isLessThan = searchPoint.x < currentNode.getX();
-				} else {
-					isLessThan = searchPoint.y < currentNode.getY();
-				}
-				if (isLessThan) {
-					currentNode = currentNode.getLeft();
-				} else {
-					currentNode = currentNode.getRight();
-				}
-				isOddLevel = !isOddLevel;
-			}
-		}
-		return found ; 
-	}
+//	public static boolean traverseFind(KdNode start, Coordinate searchPoint) { 
+//		boolean found = false ;		
+//		KdNode currentNode = start;
+//		KdNode last = null;		
+//		boolean isOddLevel = true;
+//		boolean isLessThan = true;
+//
+//		// traverse the tree first cutting the plane left-right the top-bottom
+//		while (!found && currentNode != last) {
+//			found = searchPoint.equals(currentNode.getCoordinate());
+//			if(!found){
+//				if (isOddLevel) {
+//					isLessThan = searchPoint.x < currentNode.getX();
+//				} else {
+//					isLessThan = searchPoint.y < currentNode.getY();
+//				}
+//				if (isLessThan) {
+//					currentNode = currentNode.getLeft();
+//				} else {
+//					currentNode = currentNode.getRight();
+//				}
+//				isOddLevel = !isOddLevel;
+//			}
+//		}
+//		return found ; 
+//	}
 	
 	/**
 	 * Traverses the tree structure in search of the coordinate p, starting 
@@ -349,14 +342,16 @@ public class NearestKdTree{
 	 * @param exclude collection of points which cannot be the nearest neighbor.
 	 * @return search point, nearest neighbor, and separation distance.
 	 */
+	@SuppressWarnings("unchecked")
 	public void findKNN() {
-		ArrayList path;
-		long startTime;
+		ArrayList<KdNode> path;
+//		long startTime;
 		for(KdNode node : getAllNodes()){
 			
 			boolean envQuery = node.hasKNeighbors();
 			if(node.hasKNeighbors()){
 //				startTime = System.currentTimeMillis();
+				node.calculateBBox();
 				path = query(node.getBbox());
 //				System.out.println("Init Envelope Query: " + (System.currentTimeMillis() - startTime));
 
@@ -365,15 +360,20 @@ public class NearestKdTree{
 				ArrayListVisitor v = new ArrayListVisitor();
 				traverse(root,node,v);
 				path = v.getItems();
-//				System.out.println("Init Traverse Parent and Children: " + (System.currentTimeMillis() - startTime));
+//				System.out.println("Init Traverse Parent and Children: " + 
+//				"(" + path.size() + ") " + (System.currentTimeMillis() - startTime));
 			}
 //			startTime = System.currentTimeMillis();
-			ListIterator unwind = path.listIterator(path.size()) ; 
+			ListIterator<KdNode> unwind = path.listIterator(path.size()) ; 
 			while (unwind.hasPrevious()) {
-				KdNode current = ((KdNode)(unwind.previous()));
+				KdNode current = (unwind.previous());
 				if(!node.equals(current)){
-					double addCurrentDistance = node.addNeighbor(current);
-					double addNodeDistance = current.addNeighbor(node,addCurrentDistance);
+					Double addCurrentDistance = node.addNeighbor(current);
+					if(addCurrentDistance != null){
+						current.addNeighbor(node,addCurrentDistance);
+					}else{
+						current.addNeighbor(node);
+					}
 				}
 			}
 			
@@ -381,25 +381,32 @@ public class NearestKdTree{
 //				System.out.println("Number of values to compare: " + path.size());
 //				System.out.println("Distance Comparisons: " + (System.currentTimeMillis() - startTime));
 //				startTime = System.currentTimeMillis();
+				node.calculateBBox();
 				path = query(node.getBbox());
 //				System.out.println("Second Envelope Query: " + (System.currentTimeMillis() - startTime));
 //				startTime = System.currentTimeMillis();
 				unwind = path.listIterator(path.size()) ; 
 				while (unwind.hasPrevious()) {
-					KdNode current = ((KdNode)(unwind.previous()));
+					KdNode current = (unwind.previous());
 					if(!node.equals(current)){
-						double addCurrentDistance = node.addNeighbor(current);
-						double addNodeDistance = current.addNeighbor(node,addCurrentDistance);
-//						if(addCurrentDistance!= Double.NaN){
+						Double addCurrentDistance = node.addNeighbor(current);
+						if(addCurrentDistance != null){
+							current.addNeighbor(node,addCurrentDistance);
+						}else{
+							current.addNeighbor(node);
+						}
+//						if(addCurrentDistance!= null){
 //							System.out.println("Added in post envelope query: " + node + "\nCurrent: " + current );
 //						}
 					}
 				}
 //				System.out.println("Second Number of values to compare: " + path.size());
+//				System.out.println(node.hasKNeighbors() + " : " + node.getNeighbors().size());
 //				System.out.println("Second Distance Comparisons: " + (System.currentTimeMillis() - startTime));
 			}
 		}
 	}
+	
 	
 	public KdNode getRoot() {
 		return root;
@@ -434,7 +441,7 @@ public class NearestKdTree{
 	}
 	
 	public ArrayList<KdNode> getAllNodes(){
-		ArrayList<KdNode> visitor = new ArrayList();
+		ArrayList<KdNode> visitor = new ArrayList<KdNode>();
 		query(treeBBox,visitor);
 		return visitor;
 	}
@@ -451,6 +458,7 @@ public class NearestKdTree{
 	 * @return the root of the produced tree.
 	 * @since 1.12
 	 */
+	@SuppressWarnings("unchecked")
 	protected static KdNode makeTree(Coordinate[]points, int level, int k) {
 		KdNode middle = null;
 		KdNode left = null;
@@ -486,18 +494,19 @@ public class NearestKdTree{
 		} else if (points.length == 3) {
 			// if exactly three points, we know how this plays out
 			middle = new KdNode(points[1],axis,k) ; 
+			axis = (axis+1) %2 ;
 			left = new KdNode(points[0],axis,k);
 			right = new KdNode(points[2],axis,k);
-			axis = (axis+1) %2 ;
+			
 			middle.setLeft(left);
 			left.setParent(middle);
 			middle.setRight(right);
 			right.setParent(middle);
 		} else if (points.length == 2) { 
 			// if exactly two points, we can also just hardcode it
-			middle = new KdNode(points[1],axis,k) ; 
+			middle = new KdNode(points[1],axis,k) ;
+			axis = (axis+1)%2 ;
 			left = new KdNode(points[0],axis,k);
-			axis = (axis+1)%2 ; 
 			middle.setLeft(left);
 			left.setParent(middle);
 		} else if (points.length == 1) { 
@@ -519,7 +528,7 @@ public class NearestKdTree{
 	 */
 	private void loadTree(Coordinate []points,int k) { 
 		// sift for duplicates
-		TreeSet<Coordinate> uniquePoints = new TreeSet() ;
+		TreeSet<Coordinate> uniquePoints = new TreeSet<Coordinate>() ;
 		double minX = Double.MAX_VALUE;
 		double minY = Double.MAX_VALUE;
 		double maxX = Double.MIN_VALUE;
@@ -548,7 +557,7 @@ public class NearestKdTree{
 	public static void main(String[] args) {
 		// sift for duplicates
 		Coordinate[] points = {new Coordinate(24.37623,48.911923), new Coordinate(24.37619,48.911899)};
-		TreeSet<Coordinate> uniquePoints = new TreeSet() ; 
+		TreeSet<Coordinate> uniquePoints = new TreeSet<Coordinate>() ; 
 		for (Coordinate point : points) {
 			point.x = Math.round(point.x/.001) / (1/.001);
 			point.y = Math.round(point.y/.001) / (1/.001);

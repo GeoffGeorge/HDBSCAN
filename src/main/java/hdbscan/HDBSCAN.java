@@ -7,17 +7,11 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 
 import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryCollection;
 import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.LineString;
-import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.geom.PrecisionModel;
 
 import edu.princeton.cs.algorithms.EdgeWeightedGraph;
@@ -34,17 +28,22 @@ public class HDBSCAN {
 		
 	}
 	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static EdgeWeightedGraph calculateWeightedGraph(ArrayList<KdNode> nodes){
 		HashSet<MutualReachabilityEdge> mrEdges = new HashSet();
 		int numNodes = nodes.size();
 		long startTime = System.currentTimeMillis();
 		startTime = System.currentTimeMillis();
 		for(KdNode node : nodes){
-//			if(node.getLabel() > 110 && node.getLabel() < 125){
-//			}
-						
+			if(!node.hasKNeighbors()){
+			System.out.println(node.getLabel());
+			System.out.println(node.getNeighbors().size());
+			System.out.println(node.getCoreDistance());
+			System.out.println(node.getNeighbors().values());
+			}
+
 			
-			for(KdNode other : node.getNeighbors()){
+			for(KdNode other : node.getNeighbors().values()){
 				if(node != null && other != null){
 					MutualReachabilityEdge mrEdge = new MutualReachabilityEdge(node, other);
 					mrEdges.add(mrEdge);
@@ -87,6 +86,7 @@ public class HDBSCAN {
 				bw.write("\n\"" + v1 + "\"" + "," + "\"" + v2 + "\"" + "," +
 						"\"" + e.weight() + "\"" + "," +"\"" + gf.createLineString(coords) + "\"");
 			}
+			bw.close();
 		}catch(IOException e){
 			e.printStackTrace();
 		}
